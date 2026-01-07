@@ -207,6 +207,18 @@ Once the connection is successful, the MCP server will be available for your cha
 <div align="center">
 <img src="images/librechat_chat.png"/>
 </div></br>
+<div align="center">
+<img src="images/librechat_chat1.png"/>
+</div></br>
+<div align="center">
+<img src="images/librechat_chat2.png"/>
+</div></br>
+<div align="center">
+<img src="images/librechat_chat3.png"/>
+</div></br>
+<div align="center">
+<img src="images/librechat_chat4.png"/>
+</div></br>
 
 ---
 
