@@ -202,9 +202,7 @@ mcpServers:
     type: sse
     url: http://host.docker.internal:8000/sse
     timeout: 60000  # 1 minute timeout
-    # Environment variables should be set in your Docker/deployment configuration:
-    # RADKIT_SERVICE_CODE, RADKIT_SERVICE_USERNAME, RADKIT_SERVICE_PASSWORD
-
+    
   # Everything else (same as before)
   # everything:
   #   # type: sse # type can optionally be omitted
