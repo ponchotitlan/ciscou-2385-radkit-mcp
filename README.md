@@ -301,11 +301,7 @@ You should see output confirming SSE transport:
 
 ### Usage Examples
 
-Once connected, you can interact with your network devices through natural language:
-
-<div align="center">
-<img src="images/librechat_mcp.png"/>
-</div></br>
+Once connected, you can interact with your network devices through natural language.
 
 **Example conversations:**
 
