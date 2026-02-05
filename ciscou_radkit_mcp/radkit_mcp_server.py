@@ -38,6 +38,89 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# GUARDRAILS - Dangerous Command Patterns
+# =============================================================================
+DANGEROUS_COMMAND_PATTERNS = [
+    # Shutdown/reload operations
+    r'\breload\b',
+    r'\bshutdown\b',
+    r'\breboot\b',
+    r'\bhalt\b',
+    
+    # Interface shutdown
+    r'interface\s+.*\s+shutdown',
+    r'no\s+interface',
+    
+    # Configuration deletion
+    r'\berase\b',
+    r'\bdelete\b.*\bflash:',
+    r'\bdelete\b.*\bnvram:',
+    r'\bwrite\s+erase\b',
+    r'\bclear\s+config',
+    
+    # Factory reset
+    r'\bfactory-reset\b',
+    r'\breset\s+factory',
+    
+    # Critical service disruption
+    r'no\s+ip\s+routing',
+    r'no\s+service',
+    
+    # BGP/OSPF/routing protocol removal
+    r'no\s+router\s+(bgp|ospf|eigrp|rip)',
+    
+    # VLAN deletion
+    r'no\s+vlan\s+\d+',
+    
+    # Access control deletion
+    r'no\s+access-list',
+    r'no\s+ip\s+access-group',
+    
+    # User/auth deletion
+    r'no\s+username',
+    r'no\s+aaa',
+    r'no\s+enable\s+secret',
+]
+
+
+def validate_commands_safety(commands: list[str]) -> tuple[bool, str]:
+    """
+    Validates that commands are safe to execute (read-only or non-destructive).
+    
+    Args:
+        commands: List of CLI commands to validate
+        
+    Returns:
+        tuple: (is_safe: bool, error_message: str or None)
+    """
+    import re
+    
+    for cmd in commands:
+        cmd_lower = cmd.lower().strip()
+        
+        # Check against dangerous patterns
+        for pattern in DANGEROUS_COMMAND_PATTERNS:
+            if re.search(pattern, cmd_lower, re.IGNORECASE):
+                return False, (
+                    f"❌ BLOCKED: Command '{cmd}' matches dangerous pattern '{pattern}'. "
+                    f"This operation could disrupt network services or device availability. "
+                    f"Destructive operations are not allowed through this MCP server."
+                )
+        
+        # Additional check: any 'no' command in config mode is suspicious
+        if cmd_lower.startswith('no ') and 'show' not in cmd_lower:
+            # Allow some safe 'no' commands
+            safe_no_commands = ['no debug', 'no terminal']
+            if not any(safe_cmd in cmd_lower for safe_cmd in safe_no_commands):
+                return False, (
+                    f"❌ BLOCKED: Command '{cmd}' starts with 'no' and appears to be "
+                    f"a configuration removal command. Such operations are not allowed."
+                )
+    
+    return True, None
+
+
+# =============================================================================
 # MCP TOOLS
 # =============================================================================
 # Each tool uses the shared connection via get_radkit_connection()
@@ -135,6 +218,13 @@ async def exec_cli_commands_in_device(
     """
     Executes CLI command(s) on the target device and returns the raw output.
     
+    ⚠️ SAFETY GUARDRAILS: This tool blocks dangerous commands that could:
+    - Shutdown or reload devices
+    - Delete configurations or files
+    - Disable critical services or interfaces
+    - Remove routing protocols or VLANs
+    - Modify authentication or access controls
+    
     Choose commands intelligently based on device type (get it from get_device_attributes first).
     For example, on Cisco IOS devices, use "show version", "show interfaces", etc.
     
@@ -160,7 +250,14 @@ async def exec_cli_commands_in_device(
         Exception: If execution fails. 
                   "Access denied" means RBAC is enabled and this user lacks permissions
                   for the target device - needs appropriate RBAC tag in RADKit.
+                  Commands blocked by safety guardrails will return an error message.
     """
+    # Validate command safety first
+    is_safe, error_message = validate_commands_safety(cli_commands)
+    if not is_safe:
+        logger.warning(f"Blocked dangerous command on {target_device}: {cli_commands}")
+        return error_message
+    
     # Get the shared connection (reused across all calls)
     radkit = await get_radkit_connection()
     

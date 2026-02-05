@@ -21,9 +21,11 @@
 
 # ---------------------------------------------------
 
+version: '3.8'
+
 services:
 
-# USE LIBRECHAT CONFIG FILE
+# USE LIBRECHAT CONFIG FILE AND MOUNT AGENTS DIRECTORY
   api:
     volumes:
     - type: bind

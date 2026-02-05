@@ -170,55 +170,221 @@ For this demo, we will use the [Docker version](https://www.librechat.ai/docs/lo
 
 > You need to have Docker installed in your host environment to run this deployment.
 
-To get started, clone the repository in your environment and copy the default `.env` file provided:
+### Prerequisites
+
+- Docker and Docker Compose installed
+- LibreChat v0.7.0 or later
+- CiscoU RADKit MCP Server running in SSE mode (configured in previous steps)
+
+### Setup Steps
+
+#### 1. Clone and Setup LibreChat
+
+Clone the LibreChat repository and copy the default environment file:
 
 ```bash
 git clone https://github.com/danny-avila/LibreChat.git
-```
-
-```bash
 cd LibreChat
-```
-
-```bash
 cp .env.example .env
 ```
 
-Now, copy the files `librechat.yaml` and `docker-compose.override.yml` located in the folder `librechat_setup` of this repository into the root directory of the LibreChat repository. This will allow us to onboard our local MCP server once the LibreChat app is started.
+#### 2. Configure LibreChat for RADKit MCP
 
-Finally, spin all the containers using the following command:
+Copy the pre-configured files from this repository into your LibreChat directory:
 
 ```bash
+# From the ciscou-2385-radkit-mcp directory
+# Replace /path/to/LibreChat with your actual LibreChat local repository path
+cp librechat_setup/librechat.yaml /path/to/LibreChat/librechat.yaml
+cp librechat_setup/docker-compose.override.yml /path/to/LibreChat/docker-compose.override.yml
+```
+
+> **Note**: The `librechat.yaml` file already includes the RADKit MCP server configuration at `http://host.docker.internal:8000/sse`
+
+#### 3. Optional: Add Agent Persona Configuration
+
+For an enhanced experience with a specialized Network Automation Assistant persona:
+
+```bash
+# Navigate to your LibreChat directory in your local repository
+cd /path/to/LibreChat
+
+# Create the agents directory
+mkdir -p agents
+
+# Copy the agent configuration from this repository
+cp /path/to/ciscou-2385-radkit-mcp/librechat_setup/librechat-agent-config.yaml \
+   ./agents/cisco-radkit-netops.yaml
+```
+
+The provided `docker-compose.override.yml` already includes the volume mount for the agents directory:
+
+```yaml
+services:
+  api:
+    volumes:
+    - type: bind
+      source: ./librechat.yaml
+      target: /app/librechat.yaml
+    - type: bind
+      source: ./agents
+      target: /app/agents
+```
+
+**Verify your directory structure:**
+
+Your LibreChat directory should look like this before starting the containers:
+
+```
+LibreChat/
+├── .env
+├── librechat.yaml                    # RADKit MCP server config
+├── docker-compose.override.yml       # Volume mounts configuration
+├── agents/
+│   └── cisco-radkit-netops.yaml     # Agent persona config
+└── ... (other LibreChat files)
+```
+
+This agent configuration provides:
+- Intelligent workflow guidance for network discovery and troubleshooting
+- Optimized prompts for using RADKit MCP tools effectively
+- Best practices for parallel device queries
+- Safety-aware command execution
+
+#### 4. Start LibreChat
+
+Now start all containers using Docker Compose:
+
+```bash
+# From the LibreChat directory
 docker compose up -d
 ```
 
-Once ready, login to the LibreChat app in your browser using the URL `http://localhost:3080/`. After creating an account, on the main page navigate to the left side and click the **+** button next to the banner that reads *Filter MCP servers by name*.
+**Verify the volumes are mounted correctly:**
 
-Afterwards, execute your MCP server **in SSE transport mode** and fill all the information requested.
+```bash
+# Check if the agent configuration is accessible in the container
+docker exec librechat-api ls -la /app/agents/
 
-> Very important! The URL of your MCP server shall be `http://host.docker.internal:8000/sse`, provided that LibreChat is on a container environment.
+# Expected output should show:
+# cisco-radkit-netops.yaml
+
+# View the agent configuration
+docker exec librechat-api cat /app/agents/cisco-radkit-netops.yaml
+```
+
+#### 5. Start Your MCP Server
+
+In a separate terminal, ensure your RADKit MCP server is running in SSE mode:
+
+```bash
+# From the ciscou-2385-radkit-mcp directory
+# Make sure your .env has: MCP_TRANSPORT=sse
+uv run ciscou-radkit-mcp
+```
+
+You should see output confirming SSE transport:
+
+```bash
+🔗 Server URL: http://0.0.0.0:8000/sse
+```
+
+#### 6. Connect MCP Server in LibreChat
+
+1. Open LibreChat in your browser: `http://localhost:3080/`
+2. Create an account and log in
+3. Navigate to the left sidebar and click the **+** button next to *Filter MCP servers by name*
+4. The MCP server should already be configured from the `librechat.yaml` file
+5. Verify the connection is active (green indicator)
+
+> **Important**: The MCP server URL in the configuration is `http://host.docker.internal:8000/sse` to allow the Docker container to access your host machine's MCP server.
+
+### Usage Examples
+
+Once connected, you can interact with your network devices through natural language:
 
 <div align="center">
 <img src="images/librechat_mcp.png"/>
 </div></br>
 
-Once the connection is successful, the MCP server will be available for your chats and requests!
+**Example conversations:**
+
+```
+User: "Show me all my devices"
+```
 
 <div align="center">
 <img src="images/librechat_chat.png"/>
 </div></br>
+
+```
+User: "What are the details of device p0-2e?"
+```
+
 <div align="center">
 <img src="images/librechat_chat1.png"/>
 </div></br>
+
+```
+User: "Check the interface status on p0-2e"
+```
+
 <div align="center">
 <img src="images/librechat_chat2.png"/>
 </div></br>
+
+```
+User: "Show me the running config for all devices"
+```
+
 <div align="center">
 <img src="images/librechat_chat3.png"/>
 </div></br>
+
 <div align="center">
 <img src="images/librechat_chat4.png"/>
 </div></br>
+
+### Troubleshooting
+
+**MCP server not connecting:**
+- Verify the MCP server is running: `uv run ciscou-radkit-mcp`
+- Check the server is using SSE transport on port 8000
+- Ensure `MCP_TRANSPORT=sse` in your `.env` file
+- **For Linux users**: `host.docker.internal` may not work. Use your host's IP address instead in `librechat.yaml`:
+  ```yaml
+  mcpServers:
+    ciscou-radkit:
+      url: http://192.168.1.XXX:8000/sse  # Replace with your host IP
+  ```
+- Find your host IP:
+  ```bash
+  # Linux
+  ip addr show | grep "inet " | grep -v 127.0.0.1
+  
+  # macOS
+  ipconfig getifaddr en0
+  ```
+
+**Agent not appearing:**
+- Verify the agents directory was created and the file was copied **before** starting Docker Compose
+- Check the container has the volume mounted: `docker exec librechat-api ls -la /app/agents/`
+- Check LibreChat logs for configuration errors: `docker compose logs api | grep -i agent`
+- If you added the agent after starting containers, restart LibreChat: `docker compose restart api`
+
+**Volume mount issues:**
+- Ensure `docker-compose.override.yml` is in the LibreChat root directory
+- Verify the file has correct YAML syntax (indentation matters!)
+- Check Docker Compose reads the override file: `docker compose config | grep -A 5 volumes`
+
+### Security Considerations
+
+⚠️ **Important**: 
+- Never commit your `.env` file with real credentials
+- Restrict LibreChat access to authorized personnel
+- The MCP server includes safety guardrails to prevent destructive operations
+- Monitor MCP server logs for suspicious activity
+- Use strong passwords for RADKit authentication
 
 ---
 
